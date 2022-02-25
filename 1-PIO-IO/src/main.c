@@ -138,12 +138,8 @@ int main(void)
   {
 	  if(!pio_get(BUT_PIO, PIO_INPUT, BUT_PIO_IDX_MASK)) {
 		  // Pisca LED
-		  for (int i=0; i<5; i++) {
-			  pio_clear(LED_PIO, LED_PIO_IDX_MASK);
-			  delay_ms(100);
-			  pio_set(LED_PIO, LED_PIO_IDX_MASK);
-			  delay_ms(100);
-		  }
+		  pio_clear(LED_PIO, LED_PIO_IDX_MASK);
+		  delay_ms(5000);
 		  } else  {
 		  // Ativa o pino LED_IDX (par apagar)
 		  pio_set(LED_PIO, LED_PIO_IDX_MASK);
