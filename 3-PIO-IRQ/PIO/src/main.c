@@ -70,7 +70,11 @@ void pisca_led(int n, int t);
  */
 void but_callback(void)
 {
-  but_flag = 1;
+  if (pio_get(BUT_PIO, PIO_INPUT,BUT_IDX_MASK)){
+	  but_flag = 1;
+	  } else{
+	  but_flag = 0;
+  }
 }
 
 /************************************************************************/
@@ -109,7 +113,7 @@ void io_init(void)
   pio_handler_set(BUT_PIO,
                   BUT_PIO_ID,
                   BUT_IDX_MASK,
-                  PIO_IT_RISE_EDGE,
+                  PIO_IT_EDGE,
                   but_callback);
 
   // Ativa interrupção e limpa primeira IRQ gerada na ativacao
