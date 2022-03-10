@@ -47,17 +47,23 @@
 #define BUT3_PIO_IDX 19
 #define BUT3_PIO_IDX_MASK (1u << BUT3_PIO_IDX)
 // Flag
-volatile char but_flag;
+volatile char but1_flag;
+volatile char but2_flag;
+volatile char but3_flag;
 volatile int n;
 // Funções
-void but_callback(void)
+void but1_callback(void)
 {
-	but_flag = 1;
-	/*if (pio_get(BUT1_PIO, PIO_INPUT,BUT1_PIO_IDX_MASK)){
-		but_flag = 1;
+	if (!pio_get(BUT1_PIO, PIO_INPUT,BUT1_PIO_IDX_MASK)){
+		but1_flag = 1;
 	} else{
-		but_flag = 0;
-	}*/
+		but1_flag = 0;
+	}
+	
+}
+void but2_callback(void)
+{
+	but2_flag = 1;
 	
 }
 void pisca_led(int n, int t){
@@ -75,7 +81,7 @@ void io_init(void){
 	pmc_enable_periph_clk(BUT1_PIO_ID);
 	pio_configure(BUT1_PIO, PIO_INPUT, BUT1_PIO_IDX_MASK, PIO_PULLUP | PIO_DEBOUNCE);
 	pio_set_debounce_filter(BUT1_PIO, BUT1_PIO_IDX_MASK, 60);
-	pio_handler_set(BUT1_PIO,BUT1_PIO_ID,	BUT1_PIO_IDX_MASK,PIO_IT_EDGE,but_callback);
+	pio_handler_set(BUT1_PIO,BUT1_PIO_ID,	BUT1_PIO_IDX_MASK,PIO_IT_EDGE,but1_callback);
 	pio_enable_interrupt(BUT1_PIO, BUT1_PIO_IDX_MASK);
 	pio_get_interrupt_status(BUT1_PIO);
 	NVIC_EnableIRQ(BUT1_PIO_ID);
@@ -83,11 +89,19 @@ void io_init(void){
 	pmc_enable_periph_clk(BUT2_PIO_ID);
 	pio_configure(BUT2_PIO, PIO_INPUT, BUT2_PIO_IDX_MASK, PIO_PULLUP | PIO_DEBOUNCE);
 	pio_set_debounce_filter(BUT2_PIO, BUT2_PIO_IDX_MASK, 60);
-	pio_handler_set(BUT2_PIO,BUT2_PIO_ID,	BUT2_PIO_IDX_MASK,PIO_IT_EDGE,but_callback);
+	pio_handler_set(BUT2_PIO,BUT2_PIO_ID,	BUT2_PIO_IDX_MASK,PIO_IT_EDGE,but2_callback);
 	pio_enable_interrupt(BUT2_PIO, BUT2_PIO_IDX_MASK);
 	pio_get_interrupt_status(BUT2_PIO);
 	NVIC_EnableIRQ(BUT2_PIO_ID);
 	NVIC_SetPriority(BUT2_PIO_ID, 4);
+	pmc_enable_periph_clk(BUT3_PIO_ID);
+	pio_configure(BUT3_PIO, PIO_INPUT, BUT3_PIO_IDX_MASK, PIO_PULLUP | PIO_DEBOUNCE);
+	pio_set_debounce_filter(BUT3_PIO, BUT3_PIO_IDX_MASK, 60);
+	pio_handler_set(BUT3_PIO,BUT3_PIO_ID,	BUT3_PIO_IDX_MASK,PIO_IT_EDGE,but1_callback);
+	pio_enable_interrupt(BUT3_PIO, BUT3_PIO_IDX_MASK);
+	pio_get_interrupt_status(BUT3_PIO);
+	NVIC_EnableIRQ(BUT3_PIO_ID);
+	NVIC_SetPriority(BUT3_PIO_ID, 4);
 }
 int main (void)
 {
@@ -96,36 +110,52 @@ int main (void)
 	delay_init();
 	WDT->WDT_MR = WDT_MR_WDDIS;
 	io_init();
-  // Init OLED
 	gfx_mono_ssd1306_init();
-  
-  // Escreve na tela um circulo e um texto
-	//gfx_mono_draw_filled_circle(20, 16, 16, GFX_PIXEL_SET, GFX_WHOLE);
-	//gfx_mono_draw_string("OII", 50,16, &sysfont);
 	n = 200;
 	
+	
 	while(1) {
-		if (but_flag){
-			while(!pio_get(BUT1_PIO, PIO_INPUT, BUT1_PIO_IDX_MASK)){
-				for (int i = 0; i < 10000000; i++){
-					if (pio_get(BUT1_PIO, PIO_INPUT, BUT1_PIO_IDX_MASK) && i < 1000000){
-						n-=100; // Diminuindo a frequencia quando o toque é rapido
-						pisca_led(30, n);
-						break;
-					} else if((!pio_get(BUT1_PIO, PIO_INPUT, BUT1_PIO_IDX_MASK) && i >= 1000000)){
-						n+=100; // Aumentando a frequencia quando o toque é longo
-						pisca_led(30, n);
-					}
-					
-				}
-				// Escrevendo a frequencia na tela:
-				char frequencia[15];
-				sprintf(frequencia, "freq: %d", n);
-				gfx_mono_draw_string(frequencia, 5,16, &sysfont);
+		if (but1_flag){
+			delay_ms(500);
+			if (but1_flag){
+				n+=100;
+				pisca_led(30, n);
+			}else{
+				n-=100;
+				pisca_led(30, n);
 			}
-			
-			but_flag = 0;
+			char frequencia[100];
+			sprintf(frequencia, "freq: %d", n);
+			gfx_mono_draw_string(frequencia, 5,16, &sysfont);
+			but1_flag = 0;
+			but2_flag = 0;
+			but3_flag = 0;
 		}
+// 		/*if (but1_flag){
+// 			while(!pio_get(BUT1_PIO, PIO_INPUT, BUT1_PIO_IDX_MASK)){
+// 				if(but2_flag){
+// 					pio_set(BUT1_PIO,BUT1_PIO_IDX_MASK);
+// 					break;
+// 				}
+// 				for (int i = 0; i < 10000000; i++){
+// 					if (pio_get(BUT1_PIO, PIO_INPUT, BUT1_PIO_IDX_MASK) && i < 1000000){
+// 						n-=100; // Diminuindo a frequencia quando o toque é rapido
+// 						pisca_led(30, n);
+// 						break;
+// 					} else if((!pio_get(BUT1_PIO, PIO_INPUT, BUT1_PIO_IDX_MASK) && i >= 1000000)){
+// 						n+=100; // Aumentando a frequencia quando o toque é longo
+// 						pisca_led(30, n);
+// 					}
+// 					
+// 				}
+// 				// Escrevendo a frequencia na tela:
+// 				char frequencia[15];
+// 				sprintf(frequencia, "freq: %d", n);
+// 				gfx_mono_draw_string(frequencia, 5,16, &sysfont);
+// 			}*/
+			
+			
+		
 		pmc_sleep(SAM_PM_SMODE_SLEEP_WFI);
 	}
 }
