@@ -63,7 +63,20 @@ void but1_callback(void)
 }
 void but2_callback(void)
 {
-	but2_flag = 1;
+	if (pio_get(BUT2_PIO, PIO_INPUT,BUT2_PIO_IDX_MASK)){
+		but2_flag = 1;
+		} else{
+		but2_flag = 0;
+	}
+	
+}
+void but3_callback(void)
+{
+	if (pio_get(BUT3_PIO, PIO_INPUT,BUT3_PIO_IDX_MASK)){
+		but3_flag = 1;
+		} else{
+		but3_flag = 0;
+	}
 	
 }
 void pisca_led(int n, int t){
@@ -72,6 +85,11 @@ void pisca_led(int n, int t){
 		delay_ms(t);
 		pio_set(LED1_PIO, LED1_PIO_IDX_MASK);
 		delay_ms(t);
+		if (but2_flag){
+ 			//i = n-1;
+			pio_set(LED1_PIO, LED1_PIO_IDX_MASK);
+			break;
+ 		}
 	}
 }
 void io_init(void){
@@ -97,7 +115,7 @@ void io_init(void){
 	pmc_enable_periph_clk(BUT3_PIO_ID);
 	pio_configure(BUT3_PIO, PIO_INPUT, BUT3_PIO_IDX_MASK, PIO_PULLUP | PIO_DEBOUNCE);
 	pio_set_debounce_filter(BUT3_PIO, BUT3_PIO_IDX_MASK, 60);
-	pio_handler_set(BUT3_PIO,BUT3_PIO_ID,	BUT3_PIO_IDX_MASK,PIO_IT_EDGE,but1_callback);
+	pio_handler_set(BUT3_PIO,BUT3_PIO_ID,	BUT3_PIO_IDX_MASK,PIO_IT_EDGE,but3_callback);
 	pio_enable_interrupt(BUT3_PIO, BUT3_PIO_IDX_MASK);
 	pio_get_interrupt_status(BUT3_PIO);
 	NVIC_EnableIRQ(BUT3_PIO_ID);
@@ -112,7 +130,7 @@ int main (void)
 	io_init();
 	gfx_mono_ssd1306_init();
 	n = 200;
-	
+	char frequencia[100];
 	
 	while(1) {
 		if (but1_flag){
@@ -124,38 +142,22 @@ int main (void)
 				n-=100;
 				pisca_led(30, n);
 			}
-			char frequencia[100];
+			
+			
 			sprintf(frequencia, "freq: %d", n);
 			gfx_mono_draw_string(frequencia, 5,16, &sysfont);
 			but1_flag = 0;
 			but2_flag = 0;
 			but3_flag = 0;
 		}
-// 		/*if (but1_flag){
-// 			while(!pio_get(BUT1_PIO, PIO_INPUT, BUT1_PIO_IDX_MASK)){
-// 				if(but2_flag){
-// 					pio_set(BUT1_PIO,BUT1_PIO_IDX_MASK);
-// 					break;
-// 				}
-// 				for (int i = 0; i < 10000000; i++){
-// 					if (pio_get(BUT1_PIO, PIO_INPUT, BUT1_PIO_IDX_MASK) && i < 1000000){
-// 						n-=100; // Diminuindo a frequencia quando o toque é rapido
-// 						pisca_led(30, n);
-// 						break;
-// 					} else if((!pio_get(BUT1_PIO, PIO_INPUT, BUT1_PIO_IDX_MASK) && i >= 1000000)){
-// 						n+=100; // Aumentando a frequencia quando o toque é longo
-// 						pisca_led(30, n);
-// 					}
-// 					
-// 				}
-// 				// Escrevendo a frequencia na tela:
-// 				char frequencia[15];
-// 				sprintf(frequencia, "freq: %d", n);
-// 				gfx_mono_draw_string(frequencia, 5,16, &sysfont);
-// 			}*/
-			
-			
-		
+		if (but3_flag){
+			n-=100;
+			sprintf(frequencia, "freq: %d", n);
+			gfx_mono_draw_string(frequencia, 5,16, &sysfont);
+			but1_flag = 0;
+			but2_flag = 0;
+			but3_flag = 0;
+		}
 		pmc_sleep(SAM_PM_SMODE_SLEEP_WFI);
 	}
 }
