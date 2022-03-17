@@ -255,7 +255,7 @@ int main (void)
 	
 	
 	/** Configura RTC */
-	calendar rtc_initial = {2022, 3, 17, 13, 13, 15 ,10};
+	calendar rtc_initial = {2022, 3, 17, 13, 13, 50 ,10};
 	RTC_init(RTC, ID_RTC, rtc_initial, RTC_IER_ALREN);
 	
 	
@@ -275,7 +275,6 @@ int main (void)
 			}
 		}
 		if (flag_rtc_alarm) {
-			// Pisca o LED3
 			pin_toggle(LED3_PIO, LED3_PIO_IDX_MASK);
 			delay_ms(100);
 			pin_toggle(LED3_PIO, LED3_PIO_IDX_MASK);
@@ -284,7 +283,6 @@ int main (void)
 			escrita();
 		}
 		if (flag_rtt_alarm) {
-			// Inverte LED2
 			pin_toggle(LED2_PIO, LED2_PIO_IDX_MASK);
 			RTT_init(1, 4, RTT_MR_ALMIEN);
 		}
