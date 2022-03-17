@@ -12,6 +12,18 @@ typedef struct  {
 	uint32_t minute;
 	uint32_t second;
 } calendar;
+
+//Defines placa:
+#define LED_PIO PIOC
+#define LED_PIO_ID ID_PIOC
+#define LED_PIO_IDX 8
+#define LED_PIO_IDX_MASK (1 << LED_PIO_IDX)
+
+#define BUT_PIO PIOA
+#define BUT_PIO_ID ID_PIOA
+#define BUT_PIO_IDX 11
+#define BUT_PIO_IDX_MASK (1u << BUT_PIO_IDX)
+
 //OLED
 #define LED1_PIO PIOA
 #define LED1_PIO_ID ID_PIOA
@@ -44,7 +56,7 @@ typedef struct  {
 #define BUT3_PIO_IDX_MASK (1u << BUT3_PIO_IDX)
 
 volatile char flag_rtc_alarm = 0;
-void LED_init(int estado);
+void LED1_init(int estado);
 void TC_init(Tc * TC, int ID_TC, int TC_CHANNEL, int freq);
 void pin_toggle(Pio *pio, uint32_t mask);
 void io_init(void);
@@ -65,6 +77,16 @@ void TC1_Handler(void) {
 
 	/** Muda o estado do LED (pisca) **/
 	pin_toggle(LED1_PIO, LED1_PIO_IDX_MASK);  
+}
+void TC2_Handler(void) {
+	/**
+	* Devemos indicar ao TC que a interrupção foi satisfeita.
+	* Isso é realizado pela leitura do status do periférico
+	**/
+	volatile uint32_t status = tc_get_status(TC0, 1);
+
+	/** Muda o estado do LED (pisca) **/
+	pin_toggle(LED_PIO, LED_PIO_IDX_MASK);  
 }
 void RTT_Handler(void) {
 	uint32_t ul_status;
@@ -104,8 +126,12 @@ void RTC_Handler(void) {
 	rtc_clear_status(RTC, RTC_SCCR_CALCLR);
 	rtc_clear_status(RTC, RTC_SCCR_TDERRCLR);
 }
-
 void LED_init(int estado) {
+	pmc_enable_periph_clk(LED_PIO_ID);
+	pio_set_output(LED_PIO, LED_PIO_IDX_MASK, estado, 0, 0);
+};
+
+void LED1_init(int estado) {
 	pmc_enable_periph_clk(LED1_PIO_ID);
 	pio_set_output(LED1_PIO, LED1_PIO_IDX_MASK, estado, 0, 0);
 };
@@ -214,11 +240,21 @@ int main (void)
   // Init OLED
 	gfx_mono_ssd1306_init();
 	WDT->WDT_MR = WDT_MR_WDDIS;
+	//LED:
 	LED_init(1);
-	LED2_init(0);
+	//LED 1:
+	LED1_init(1);
 	TC_init(TC0, ID_TC1, 1, 4);
-	tc_start(TC0, 1);  
+	tc_start(TC0, 1);
+	//LED 2:
+	LED2_init(0);
 	RTT_init(4, 16, RTT_MR_ALMIEN); //mudar a freq para 0.25Hz
+	//LED 3:
+	
+	
+	
+	  
+	
 	/** Configura RTC */
 	calendar rtc_initial = {2022, 3, 10, 11, 11, 30 ,1};
 	RTC_init(RTC, ID_RTC, rtc_initial, RTC_IER_ALREN);

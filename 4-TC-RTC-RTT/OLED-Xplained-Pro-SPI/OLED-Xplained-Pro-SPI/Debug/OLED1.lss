@@ -4178,7 +4178,7 @@ int main (void)
   401858:	4b2d      	ldr	r3, [pc, #180]	; (401910 <main+0xfc>)
   40185a:	4798      	blx	r3
 	/** Configura RTC */
-	calendar rtc_initial = {2018, 3, 19, 12, 15, 45 ,1};
+	calendar rtc_initial = {2022, 3, 10, 11, 11, 30 ,1};
   40185c:	ac0d      	add	r4, sp, #52	; 0x34
   40185e:	4d2d      	ldr	r5, [pc, #180]	; (401914 <main+0x100>)
   401860:	cd0f      	ldmia	r5!, {r0, r1, r2, r3}
@@ -4718,12 +4718,12 @@ int main (void)
   401db0:	20400438 	.word	0x20400438
   401db4:	00401dd8 	.word	0x00401dd8
   401db8:	00000000 	.word	0x00000000
-  401dbc:	000007e2 	.word	0x000007e2
+  401dbc:	000007e6 	.word	0x000007e6
   401dc0:	00000003 	.word	0x00000003
-  401dc4:	00000013 	.word	0x00000013
-  401dc8:	0000000c 	.word	0x0000000c
-  401dcc:	0000000f 	.word	0x0000000f
-  401dd0:	0000002d 	.word	0x0000002d
+  401dc4:	0000000a 	.word	0x0000000a
+  401dc8:	0000000b 	.word	0x0000000b
+  401dcc:	0000000b 	.word	0x0000000b
+  401dd0:	0000001e 	.word	0x0000001e
   401dd4:	00000001 	.word	0x00000001
 
 00401dd8 <_global_impure_ptr>:
