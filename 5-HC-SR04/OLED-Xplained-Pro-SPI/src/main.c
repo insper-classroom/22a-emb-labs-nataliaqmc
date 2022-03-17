@@ -4,6 +4,8 @@
 #include "gfx_mono_text.h"
 #include "sysfont.h"
 
+
+
 int main (void)
 {
 	board_init();
