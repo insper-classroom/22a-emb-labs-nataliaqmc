@@ -1,47 +1,165 @@
 #include <asf.h>
-
+#include "defines.h"
 #include "gfx_mono_ug_2832hsweg04.h"
 #include "gfx_mono_text.h"
 #include "sysfont.h"
 
+/************************************************************************/
+/* prototypes                                                           */
+/************************************************************************/
+void pin_toggle(Pio *pio, uint32_t mask);
+void io_init(void);
+static void RTT_init(float freqPrescale, uint32_t IrqNPulses, uint32_t rttIRQSource);
+void RTT_Handler(void);
+void echo_callback();
+void but_callback();
 
 
+/************************************************************************/
+/* FUNÇÕES                                                              */
+/************************************************************************/
+void but_callback(void){
+	but_flag = 1;
+}
+
+void echo_callback(){
+	if (pio_get(ECHO_PIO, PIO_INPUT, ECHO_PIO_IDX_MASK)) {
+		if (but_flag){
+			RTT_init(freq, 0 , 0);
+			echo_flag = 1;
+		}
+		else {
+			erro_flag = 1;
+		}
+		}else {
+		echo_flag = 0;
+		pulses = rtt_read_timer_value(RTT);
+	}
+}
+
+void RTT_Handler(void) {
+	uint32_t ul_status;
+
+	/* Get RTT status - ACK */
+	ul_status = rtt_get_status(RTT);
+
+	/* IRQ due to Alarm */
+	if ((ul_status & RTT_SR_ALMS) == RTT_SR_ALMS) {
+		erro_flag = 1;
+	}
+	
+	/* IRQ due to Time has changed */
+	if ((ul_status & RTT_SR_RTTINC) == RTT_SR_RTTINC) {
+	}
+}
+
+void pin_toggle(Pio *pio, uint32_t mask){
+	if(pio_get_output_data_status(pio, mask))
+	pio_clear(pio, mask);
+	else
+	pio_set(pio,mask);
+}
+
+static void RTT_init(float freqPrescale, uint32_t IrqNPulses, uint32_t rttIRQSource) {
+
+	uint16_t pllPreScale = (int) (((float) 32768) / freqPrescale);
+	
+	rtt_sel_source(RTT, false);
+	rtt_init(RTT, pllPreScale);
+	
+	if (rttIRQSource & RTT_MR_ALMIEN) {
+		uint32_t ul_previous_time;
+		ul_previous_time = rtt_read_timer_value(RTT);
+		while (ul_previous_time == rtt_read_timer_value(RTT));
+		rtt_write_alarm_time(RTT, IrqNPulses+ul_previous_time);
+	}
+
+	/* config NVIC */
+	NVIC_DisableIRQ(RTT_IRQn);
+	NVIC_ClearPendingIRQ(RTT_IRQn);
+	NVIC_SetPriority(RTT_IRQn, 4);
+	NVIC_EnableIRQ(RTT_IRQn);
+
+	/* Enable RTT interrupt */
+	if (rttIRQSource & (RTT_MR_RTTINCIEN | RTT_MR_ALMIEN)){
+		rtt_enable_interrupt(RTT, rttIRQSource);
+	}
+	
+	else{
+		rtt_disable_interrupt(RTT, RTT_MR_RTTINCIEN | RTT_MR_ALMIEN);
+	}
+	
+	
+}
+
+
+void io_init(void){
+	WDT->WDT_MR = WDT_MR_WDDIS;
+	// Inicializando Trig como output:
+	pmc_enable_periph_clk(TRIG_PIO_ID);
+	pio_set_output(TRIG_PIO, TRIG_PIO_IDX_MASK, 0, 0, 1);
+
+	
+	// Inicializando echo como input:
+	pmc_enable_periph_clk(ECHO_PIO_ID);
+	pio_configure(ECHO_PIO, PIO_INPUT, ECHO_PIO_IDX_MASK, PIO_DEBOUNCE);
+	pio_set_debounce_filter(ECHO_PIO, ECHO_PIO_IDX_MASK, 60);
+	pio_handler_set(ECHO_PIO,ECHO_PIO_ID,	ECHO_PIO_IDX_MASK,PIO_IT_EDGE,echo_callback);
+	pio_enable_interrupt(ECHO_PIO, ECHO_PIO_IDX_MASK);
+	pio_get_interrupt_status(ECHO_PIO);
+	NVIC_EnableIRQ(ECHO_PIO_ID);
+	NVIC_SetPriority(ECHO_PIO_ID, 4);
+	
+	//Botao oled:
+	pmc_enable_periph_clk(BUT_PIO1_ID);
+	pio_configure(BUT_PIO1, PIO_INPUT, BUT_PIO_1_IDX_MASK, PIO_PULLUP | PIO_DEBOUNCE);
+	pio_set_debounce_filter(BUT_PIO1, BUT_PIO_1_IDX_MASK, 60);
+	pio_handler_set(BUT_PIO1,BUT_PIO1_ID,BUT_PIO_1_IDX_MASK,PIO_IT_FALL_EDGE,but_callback);
+	pio_enable_interrupt(BUT_PIO1, BUT_PIO_1_IDX_MASK);
+	pio_get_interrupt_status(BUT_PIO1);
+	NVIC_EnableIRQ(BUT_PIO1_ID);
+	NVIC_SetPriority(BUT_PIO1_ID, 4);
+}
 int main (void)
 {
 	board_init();
 	sysclk_init();
 	delay_init();
-
-  // Init OLED
-	gfx_mono_ssd1306_init();
-  
-  
-	gfx_mono_draw_filled_circle(20, 16, 16, GFX_PIXEL_SET, GFX_WHOLE);
-  gfx_mono_draw_string("mundo", 50,16, &sysfont);
-  
-  
-
-  /* Insert application code here, after the board has been initialized. */
+	io_init();
+	gfx_mono_ssd1306_init();  
+ 
 	while(1) {
-
-
-
-			// Escreve na tela um circulo e um texto
-			
-			for(int i=70;i<=120;i+=2){
-				
-				gfx_mono_draw_rect(i, 5, 2, 10, GFX_PIXEL_SET);
-				delay_ms(10);
-				
+		if (erro_flag){
+			gfx_mono_draw_string("ERRO    ", 5, 10, &sysfont);
+			erro_flag = 0;
+		}
+		else if(echo_flag){
+			float dist = (float)(100.0*pulses*340)/(freq*2);
+			if(dist >= 400){
+				dist = -1;
 			}
 			
-			for(int i=120;i>=70;i-=2){
-				
-				gfx_mono_draw_rect(i, 5, 2, 10, GFX_PIXEL_CLR);
-				delay_ms(10);
-				
+			if(dist == -1){
+				gfx_mono_draw_string("Aproxime", 5, 10, &sysfont);
+				erro_flag = 0;
 			}
 			
+			else {
+				char dist_str[10];
+				sprintf(dist_str, " %d cm    ", dist);
+				gfx_mono_draw_string(dist_str, 5, 10, &sysfont);
+			}
+			but_flag = 0;
+		}
+		
+		else if(but_flag){
+			pio_clear(TRIG_PIO, TRIG_PIO_IDX_MASK);
+			delay_us(10);
+			pio_set(TRIG_PIO, TRIG_PIO_IDX_MASK);
+		}
+		
+		pmc_sleep(SAM_PM_SMODE_SLEEP_WFI);
+		
 			
 	}
 }
