@@ -9,10 +9,13 @@
 /************************************************************************/
 void pin_toggle(Pio *pio, uint32_t mask);
 void io_init(void);
-static void RTT_init(float freqPrescale, uint32_t IrqNPulses, uint32_t rttIRQSource);
+void RTT_init(float freqPrescale, uint32_t IrqNPulses, uint32_t rttIRQSource);
 void RTT_Handler(void);
 void echo_callback();
 void but_callback();
+void pisca_led();
+float distancia();
+
 
 
 /************************************************************************/
@@ -31,7 +34,7 @@ void echo_callback(){
 		else {
 			erro_flag = 1;
 		}
-		}else {
+	}else {
 		echo_flag = 0;
 		pulses = rtt_read_timer_value(RTT);
 	}
@@ -53,14 +56,16 @@ void RTT_Handler(void) {
 	}
 }
 
-void pin_toggle(Pio *pio, uint32_t mask){
-	if(pio_get_output_data_status(pio, mask))
-	pio_clear(pio, mask);
-	else
-	pio_set(pio,mask);
+void pin_toggle(Pio *pio, uint32_t mask) {
+	if(pio_get_output_data_status(pio, mask)) {
+		pio_clear(pio, mask);
+	}
+	else{
+		pio_set(pio,mask);
+	}
 }
 
-static void RTT_init(float freqPrescale, uint32_t IrqNPulses, uint32_t rttIRQSource) {
+void RTT_init(float freqPrescale, uint32_t IrqNPulses, uint32_t rttIRQSource) {
 
 	uint16_t pllPreScale = (int) (((float) 32768) / freqPrescale);
 	
@@ -91,9 +96,22 @@ static void RTT_init(float freqPrescale, uint32_t IrqNPulses, uint32_t rttIRQSou
 	
 	
 }
+float distancia(){
+	float dist = (float)(100.0*pulses*340)/(freq*2);
+	if(dist >= 400){
+		return -1;
+	}
+	return dist;
+}
+void pisca_led(){
+	pio_clear(TRIG_PIO, TRIG_PIO_IDX_MASK);
+	delay_us(10);
+	pio_set(TRIG_PIO, TRIG_PIO_IDX_MASK);
+}
 
 
 void io_init(void){
+	sysclk_init();
 	WDT->WDT_MR = WDT_MR_WDDIS;
 	// Inicializando Trig como output:
 	pmc_enable_periph_clk(TRIG_PIO_ID);
@@ -123,39 +141,33 @@ void io_init(void){
 int main (void)
 {
 	board_init();
-	sysclk_init();
+	
 	delay_init();
 	io_init();
 	gfx_mono_ssd1306_init();  
  
 	while(1) {
 		if (erro_flag){
-			gfx_mono_draw_string("ERRO    ", 5, 10, &sysfont);
+			gfx_mono_draw_string("ERRO     ", 5, 10, &sysfont);
 			erro_flag = 0;
 		}
 		else if(echo_flag){
-			float dist = (float)(100.0*pulses*340)/(freq*2);
-			if(dist >= 400){
-				dist = -1;
-			}
-			
+			int dist = distancia();			
 			if(dist == -1){
-				gfx_mono_draw_string("Aproxime", 5, 10, &sysfont);
+				gfx_mono_draw_string("Aproxime  ", 5, 10, &sysfont);
 				erro_flag = 0;
 			}
 			
 			else {
 				char dist_str[10];
-				sprintf(dist_str, " %d cm    ", dist);
+				sprintf(dist_str, "%d cm   ", dist);
 				gfx_mono_draw_string(dist_str, 5, 10, &sysfont);
 			}
 			but_flag = 0;
 		}
 		
 		else if(but_flag){
-			pio_clear(TRIG_PIO, TRIG_PIO_IDX_MASK);
-			delay_us(10);
-			pio_set(TRIG_PIO, TRIG_PIO_IDX_MASK);
+			pisca_led();
 		}
 		
 		pmc_sleep(SAM_PM_SMODE_SLEEP_WFI);
