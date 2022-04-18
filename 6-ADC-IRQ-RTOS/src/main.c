@@ -19,6 +19,9 @@
 #define TASK_ADC_STACK_SIZE (1024*10 / sizeof(portSTACK_TYPE))
 #define TASK_ADC_STACK_PRIORITY (tskIDLE_PRIORITY)
 
+#define TASK_PROC_STACK_SIZE (1024*10 / sizeof(portSTACK_TYPE))
+#define TASK_PROC_STACK_PRIORITY (tskIDLE_PRIORITY)
+
 extern void vApplicationStackOverflowHook(xTaskHandle *pxTask,
                                           signed char *pcTaskName);
 extern void vApplicationIdleHook(void);
@@ -32,6 +35,7 @@ extern void xPortSysTickHandler(void);
 
 /** Queue for msg log send data */
 QueueHandle_t xQueueADC;
+QueueHandle_t xQueuePROC;
 
 typedef struct {
   uint value;
@@ -120,6 +124,35 @@ static void task_adc(void *pvParameters) {
       printf("Nao chegou um novo dado em 1 segundo");
     }
   }
+}
+
+static void task_proc(void *pvParameters){
+	config_AFEC_pot(AFEC_POT, AFEC_POT_ID, AFEC_POT_CHANNEL, AFEC_pot_Callback);
+	TC_init(TC0, ID_TC1, 1, 10);
+	tc_start(TC0, 1);
+
+	adcData procADC;
+	
+	int numerador = 0;
+	int denominador = 0;
+	int resultado;
+	
+	while (1) {
+		if (xQueueReceive(xQueuePROC, &(procADC), 1000)) {
+			denominador += procADC.value;
+			numerador++;
+			
+			if(numerador==10) {
+				resultado = denominador/numerador;
+				xQueueSend(xQueueADC, (void *)&resultado, 10);
+				numerador = 0;
+				denominador = 0;
+			}
+			
+		} else {
+			printf("Nao chegou um novo dado em 1 segundo");
+		}
+	}
 }
 
 /************************************************************************/
@@ -223,9 +256,17 @@ int main(void) {
   if (xQueueADC == NULL)
     printf("falha em criar a queue xQueueADC \n");
 
+  xQueuePROC = xQueueCreate(100, sizeof(adcData));
+  if (xQueuePROC == NULL)
+  printf("falha em criar a queue xQueuePROC \n");
+  
   if (xTaskCreate(task_adc, "ADC", TASK_ADC_STACK_SIZE, NULL,
                   TASK_ADC_STACK_PRIORITY, NULL) != pdPASS) {
     printf("Failed to create test ADC task\r\n");
+  }
+  if (xTaskCreate(task_proc, "PROC", TASK_PROC_STACK_SIZE, NULL,
+  TASK_PROC_STACK_PRIORITY, NULL) != pdPASS) {
+	  printf("Failed to create test ADC task\r\n");
   }
 
   vTaskStartScheduler();
