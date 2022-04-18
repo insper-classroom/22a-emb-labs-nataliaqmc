@@ -261,10 +261,12 @@ int main(void) {
 	
   printf("Sys init ok \n");
 
-  /* Attempt to create a semaphore. */
-  xSemaphoreBut = xSemaphoreCreateBinary();
-  if (xSemaphoreBut == NULL)
-    printf("falha em criar o semaforo \n");
+/*
+//   / * Attempt to create a semaphore. * /
+//   xSemaphoreBut = xSemaphoreCreateBinary();
+//   if (xSemaphoreBut == NULL)
+//     printf("falha em criar o semaforo \n");
+*/
 	
   
   /* cria queue com 32 "espacos" */
