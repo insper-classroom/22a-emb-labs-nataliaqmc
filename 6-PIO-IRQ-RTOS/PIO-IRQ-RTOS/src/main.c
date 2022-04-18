@@ -45,9 +45,11 @@ extern void xPortSysTickHandler(void);
 
 /** Semaforo a ser usado pela task led */
 SemaphoreHandle_t xSemaphoreBut;
+SemaphoreHandle_t xSemaphoreBut1;
 
 /** Queue for msg log send data */
 QueueHandle_t xQueueLedFreq;
+QueueHandle_t xQueueIncrementa;
 
 /************************************************************************/
 /* prototypes local                                                     */
@@ -103,12 +105,14 @@ extern void vApplicationMallocFailedHook(void) {
 /************************************************************************/
 
 void but_callback(void) {
+  uint32_t decrementa = -100;
   BaseType_t xHigherPriorityTaskWoken = pdFALSE;
-  xSemaphoreGiveFromISR(xSemaphoreBut, &xHigherPriorityTaskWoken);
+  xQueueSendFromISR(xQueueIncrementa, (void *)&decrementa, 10);
 }
-void but1_callback(void)
-{
-	
+void but1_callback(void){
+	uint32_t incrementa = 100;
+	BaseType_t xHigherPriorityTaskWoken = pdFALSE;
+	xQueueSendFromISR(xQueueIncrementa, (void *)&incrementa, 10);
 }
 
 
@@ -147,26 +151,29 @@ static void task_but(void *pvParameters) {
 
   /* iniciliza botao */
   BUT_init();
-  BUT1_init();
 
   uint32_t delayTicks = 2000;
+  uint32_t incrementa = 0;
 
   for (;;) {
-    /* aguarda por tempo inderteminado até a liberacao do semaforo */
-    if (xSemaphoreTake(xSemaphoreBut, 1000)) {
-      /* atualiza frequencia */
-      delayTicks -= 100;
+	  /* aguarda por tempo inderteminado até a liberacao do semaforo */
+	  if (xQueueReceive(xQueueIncrementa, &incrementa, (TickType_t) 0)) {
+		  /* atualiza frequencia */
+		  delayTicks += incrementa;
 
-      /* envia nova frequencia para a task_led */
-      xQueueSend(xQueueLedFreq, (void *)&delayTicks, 10);
-	    
-      printf("task_but: %d \n", delayTicks);
+		  /* envia nova frequencia para a task_led */
+		  xQueueSend(xQueueLedFreq, (void *)&delayTicks, 10);
+		  
+		  printf("task_but: %d \n", delayTicks);
 
-      /* garante range da freq. */
-      if (delayTicks == 100) {
-        delayTicks = 900;
-      }
-    }
+		  /* garante range da freq. */
+		  if (delayTicks == 100) {
+			  delayTicks = 900;
+		  }
+		  else if (delayTicks == 2100) {
+			  delayTicks = 100;
+		  }
+	  }
   }
 }
 
@@ -208,8 +215,8 @@ void LED_init(int estado){
 static void BUT_init(void) {
   // Configura PIO para lidar com o pino do botão como entrada
   // com pull-up
-  pio_configure(BUT_PIO, PIO_INPUT, BUT_PIO_PIN_MASK, PIO_PULLUP);
-
+  pio_configure(BUT_PIO, PIO_INPUT, BUT_PIO_PIN_MASK, PIO_PULLUP | PIO_DEBOUNCE);
+  pio_configure(BUT1_PIO, PIO_INPUT, BUT1_PIO_IDX_MASK, PIO_PULLUP | PIO_DEBOUNCE);
   // Configura interrupção no pino referente ao botao e associa
   // função de callback caso uma interrupção for gerada
   // a função de callback é a: but_callback()
@@ -218,40 +225,25 @@ static void BUT_init(void) {
                   BUT_PIO_PIN_MASK,
                   PIO_IT_FALL_EDGE,
                   but_callback);
-
+  pio_handler_set(BUT1_PIO,
+				  BUT1_PIO_ID,
+				  BUT1_PIO_IDX_MASK,
+				  PIO_IT_FALL_EDGE,
+				  but1_callback);
   // Ativa interrupção e limpa primeira IRQ gerada na ativacao
   pio_enable_interrupt(BUT_PIO, BUT_PIO_PIN_MASK);
   pio_get_interrupt_status(BUT_PIO);
+  pio_enable_interrupt(BUT1_PIO, BUT1_PIO_IDX_MASK);
+  pio_get_interrupt_status(BUT1_PIO);
   
   // Configura NVIC para receber interrupcoes do PIO do botao
   // com prioridade 4 (quanto mais próximo de 0 maior)
   NVIC_EnableIRQ(BUT_PIO_ID);
-  NVIC_SetPriority(BUT_PIO_ID, 4); // Prioridade 4
+  NVIC_SetPriority(BUT_PIO_ID, 4);
+  NVIC_EnableIRQ(BUT1_PIO_ID);
+  NVIC_SetPriority(BUT1_PIO_ID, 4);
 }
 
-static void BUT1_init(void) {
-	// Configura PIO para lidar com o pino do botão como entrada
-	// com pull-up
-	pio_configure(BUT1_PIO, PIO_INPUT, BUT1_PIO_IDX_MASK, PIO_PULLUP);
-
-	// Configura interrupção no pino referente ao botao e associa
-	// função de callback caso uma interrupção for gerada
-	// a função de callback é a: but_callback()
-	pio_handler_set(BUT1_PIO,
-	BUT1_PIO_ID,
-	BUT1_PIO_IDX_MASK,
-	PIO_IT_FALL_EDGE,
-	but1_callback);
-
-	// Ativa interrupção e limpa primeira IRQ gerada na ativacao
-	pio_enable_interrupt(BUT1_PIO, BUT1_PIO_IDX_MASK);
-	pio_get_interrupt_status(BUT1_PIO);
-	
-	// Configura NVIC para receber interrupcoes do PIO do botao
-	// com prioridade 4 (quanto mais próximo de 0 maior)
-	NVIC_EnableIRQ(BUT1_PIO_ID);
-	NVIC_SetPriority(BUT1_PIO_ID, 4); // Prioridade 4
-}
 /************************************************************************/
 /* main                                                                 */
 /************************************************************************/
@@ -273,9 +265,14 @@ int main(void) {
   xSemaphoreBut = xSemaphoreCreateBinary();
   if (xSemaphoreBut == NULL)
     printf("falha em criar o semaforo \n");
-
+	
+  
   /* cria queue com 32 "espacos" */
   /* cada espaço possui o tamanho de um inteiro*/
+  xQueueIncrementa = xQueueCreate(32, sizeof(uint32_t));
+  if (xQueueIncrementa == NULL)
+  printf("falha em criar a queue \n");
+  
   xQueueLedFreq = xQueueCreate(32, sizeof(uint32_t));
   if (xQueueLedFreq == NULL)
     printf("falha em criar a queue \n");
