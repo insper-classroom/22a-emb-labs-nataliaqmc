@@ -23,6 +23,8 @@ static lv_color_t buf_1[LV_HOR_RES_MAX * LV_VER_RES_MAX];
 static lv_disp_drv_t disp_drv;          /*A variable to hold the drivers. Must be static or global.*/
 static lv_indev_drv_t indev_drv;
 
+// global
+static  lv_obj_t * labelBtn1;
 /************************************************************************/
 /* RTOS                                                                 */
 /************************************************************************/
@@ -64,6 +66,50 @@ static void event_handler(lv_event_t * e) {
 	}
 }
 
+static void menu_handler(lv_event_t * e) {
+	lv_event_code_t code = lv_event_get_code(e);
+
+	if(code == LV_EVENT_CLICKED) {
+		LV_LOG_USER("Clicked");
+	}
+	else if(code == LV_EVENT_VALUE_CHANGED) {
+		LV_LOG_USER("Toggled");
+	}
+}
+
+static void clk_handler(lv_event_t * e) {
+	lv_event_code_t code = lv_event_get_code(e);
+
+	if(code == LV_EVENT_CLICKED) {
+		LV_LOG_USER("Clicked");
+	}
+	else if(code == LV_EVENT_VALUE_CHANGED) {
+		LV_LOG_USER("Toggled");
+	}
+}
+
+static void up_handler(lv_event_t * e) {
+	lv_event_code_t code = lv_event_get_code(e);
+
+	if(code == LV_EVENT_CLICKED) {
+		LV_LOG_USER("Clicked");
+	}
+	else if(code == LV_EVENT_VALUE_CHANGED) {
+		LV_LOG_USER("Toggled");
+	}
+}
+
+static void down_handler(lv_event_t * e) {
+	lv_event_code_t code = lv_event_get_code(e);
+
+	if(code == LV_EVENT_CLICKED) {
+		LV_LOG_USER("Clicked");
+	}
+	else if(code == LV_EVENT_VALUE_CHANGED) {
+		LV_LOG_USER("Toggled");
+	}
+}
+
 void lv_ex_btn_1(void) {
 	lv_obj_t * label;
 
@@ -86,6 +132,72 @@ void lv_ex_btn_1(void) {
 	lv_obj_center(label);
 }
 
+
+void lv_termostato(void) {
+	lv_obj_t * labelBtn1;
+	lv_obj_t * labelBtnMenu;
+	lv_obj_t * labelBtnClk;
+	lv_obj_t * labelBtnUp;
+	lv_obj_t * labelBtnDown;
+	static lv_style_t style;
+
+	lv_style_init(&style);
+	lv_style_set_bg_color(&style, lv_color_black());
+
+	//Button 1 (on/off):
+	lv_obj_t * btn1 = lv_btn_create(lv_scr_act());
+	lv_obj_add_event_cb(btn1, event_handler, LV_EVENT_ALL, NULL);
+	lv_obj_align(btn1, LV_ALIGN_BOTTOM_LEFT, 0, 0);
+	lv_obj_add_style(btn1, &style, 0);
+	
+	labelBtn1 = lv_label_create(btn1);
+	lv_label_set_text(labelBtn1, "[  " LV_SYMBOL_POWER);
+	lv_obj_center(labelBtn1);
+	
+	//Button 2 (menu):
+	lv_obj_t * btnMenu = lv_btn_create(lv_scr_act());
+	lv_obj_add_event_cb(btnMenu, event_handler, LV_EVENT_ALL, NULL);
+	lv_obj_align_to(btnMenu, btn1, LV_ALIGN_RIGHT_MID, 35, -10);
+	lv_obj_add_style(btnMenu, &style, 0);
+	
+	labelBtnMenu = lv_label_create(btnMenu);
+	lv_label_set_text(labelBtnMenu, "| M" );
+	lv_obj_center(labelBtnMenu);
+	
+	//Button 3 (clock):
+	lv_obj_t * btnClk = lv_btn_create(lv_scr_act());
+	lv_obj_add_event_cb(btnClk, event_handler, LV_EVENT_ALL, NULL);
+	lv_obj_align_to(btnClk, btnMenu, LV_ALIGN_RIGHT_MID, 35, -10);
+	lv_obj_add_style(btnClk, &style, 0);
+	
+	labelBtnClk = lv_label_create(btnClk);
+	lv_label_set_text(labelBtnClk, "|  " LV_SYMBOL_SETTINGS "  ]" );
+	lv_obj_center(labelBtnClk);
+	
+	//Button 4 (down):
+	lv_obj_t * btnDown = lv_btn_create(lv_scr_act());
+	lv_obj_add_event_cb(btnDown, event_handler, LV_EVENT_ALL, NULL);
+	lv_obj_align(btnDown, LV_ALIGN_BOTTOM_RIGHT, 0, 0);
+	lv_obj_add_style(btnDown, &style, 0);
+	
+	labelBtnDown = lv_label_create(btnDown);
+	lv_label_set_text(labelBtnDown, LV_SYMBOL_DOWN "  ]" );
+	lv_obj_center(labelBtnDown);
+	
+	//Button 5 (up):
+	lv_obj_t * btnUp = lv_btn_create(lv_scr_act());
+	lv_obj_add_event_cb(btnUp, event_handler, LV_EVENT_ALL, NULL);
+	lv_obj_align_to(btnUp, btnDown, LV_ALIGN_LEFT_MID, -65, -10);
+	lv_obj_add_style(btnUp, &style, 0);
+	
+	labelBtnUp = lv_label_create(btnUp);
+	lv_label_set_text(labelBtnUp, "[  " LV_SYMBOL_UP );
+	lv_obj_center(labelBtnUp);
+	
+	
+	
+}
+
 /************************************************************************/
 /* TASKS                                                                */
 /************************************************************************/
@@ -93,7 +205,7 @@ void lv_ex_btn_1(void) {
 static void task_lcd(void *pvParameters) {
 	int px, py;
 
-	lv_ex_btn_1();
+	lv_termostato();
 
 	for (;;)  {
 		lv_tick_inc(50);
