@@ -52,12 +52,12 @@ static lv_obj_t * labelSetValue;
 static lv_obj_t * labelClock;
 static lv_obj_t * labelCelcius;
 static lv_obj_t * labelGrau;
-static lv_obj_t * labelCelcius2;
-static lv_obj_t * labelGrau2;
-static lv_obj_t * labelMin;
-static lv_obj_t * labelHour;
 static lv_obj_t * labelSetC;
 static lv_obj_t * labelSetO;
+static lv_obj_t * labelSetO;
+static lv_obj_t * labelHeat;
+static lv_obj_t * labelTimer;
+static lv_obj_t * labelHome;
 volatile uint32_t current_hour, current_min, current_sec;
 /************************************************************************/
 /* RTOS                                                                 */
@@ -147,6 +147,14 @@ static void event_handler(lv_event_t * e) {
 }
 
 static void menu_handler(lv_event_t * e) {
+	lv_event_code_t code = lv_event_get_code(e);
+}
+
+static void heat_handler(lv_event_t * e) {
+	lv_event_code_t code = lv_event_get_code(e);
+}
+
+static void timer_handler(lv_event_t * e) {
 	lv_event_code_t code = lv_event_get_code(e);
 }
 
@@ -288,6 +296,25 @@ void lv_termostato(void) {
 	lv_obj_set_style_text_color(labelSetO, lv_color_white(), LV_STATE_DEFAULT);
 	lv_label_set_text_fmt(labelSetO, "o");
 	
+	//Button 6 (heat):
+	lv_obj_t * btnHeat = lv_btn_create(lv_scr_act());
+	lv_obj_add_event_cb(btnHeat, heat_handler, LV_EVENT_ALL, NULL);
+	lv_obj_align_to(btnHeat, labelSetValue, LV_ALIGN_BOTTOM_RIGHT, 10, 25);
+	lv_obj_add_style(btnHeat, &style, 0);
+	
+	labelHeat = lv_label_create(btnHeat);
+	lv_label_set_text(labelHeat, LV_SYMBOL_WIFI );
+	lv_obj_center(labelHeat);
+	
+	//Button 7 (timer):
+	lv_obj_t * btnTimer = lv_btn_create(lv_scr_act());
+	lv_obj_add_event_cb(btnTimer, timer_handler, LV_EVENT_ALL, NULL);
+	lv_obj_align_to(btnTimer, labelHeat, LV_ALIGN_LEFT_MID, -60, -5);
+	lv_obj_add_style(btnTimer, &style, 0);
+	
+	labelTimer = lv_label_create(btnTimer);
+	lv_label_set_text(labelTimer, LV_SYMBOL_REFRESH );
+	lv_obj_center(labelTimer);
 	
 }
 
