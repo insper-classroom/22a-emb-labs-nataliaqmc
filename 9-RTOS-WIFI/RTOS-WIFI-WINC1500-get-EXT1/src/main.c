@@ -6,6 +6,17 @@
 #include "socket/include/socket.h"
 #include "util.h"
 
+
+
+#define LED_PIO PIOC
+#define LED_PIO_ID ID_PIOC
+#define LED_PIO_IDX 8
+#define LED_PIO_IDX_MASK (1 << LED_PIO_IDX)
+
+#define BUT_PIO			     PIOA
+#define BUT_PIO_ID           ID_PIOA
+#define BUT_PIO_IDX		     11
+#define BUT_PIO_IDX_MASK     (1u << BUT_PIO_IDX)
 /************************************************************************/
 /* WIFI                                                                 */
 /************************************************************************/
@@ -47,6 +58,7 @@ static char server_host_name[] = MAIN_SERVER_NAME;
 #define TASK_PROCESS_PRIORITY     (0)
 
 SemaphoreHandle_t xSemaphore;
+SemaphoreHandle_t xSemaphoreBotao;
 QueueHandle_t xQueueMsg;
 
 extern void vApplicationStackOverflowHook(xTaskHandle *pxTask,
@@ -79,7 +91,26 @@ extern void vApplicationMallocFailedHook(void){
 /************************************************************************/
 /* funcoes                                                              */
 /************************************************************************/
+void but_callback(void){
+	BaseType_t xHigherPriorityTaskWoken = pdFALSE;
+	xSemaphoreGiveFromISR(xSemaphoreBotao, &xHigherPriorityTaskWoken);
+	
+}
 
+
+void configure_pio_input(Pio *pio, const pio_type_t ul_type, const uint32_t ul_mask, const uint32_t ul_attribute, uint32_t ul_id){
+	pmc_enable_periph_clk(ul_id);
+	pio_configure(pio, ul_type, ul_mask, ul_attribute);
+	pio_set_debounce_filter(pio, ul_mask, 60);
+}
+
+void configure_interruption(Pio *pio, uint32_t ul_id, const uint32_t ul_mask,  uint32_t ul_attr, void (*p_handler) (uint32_t, uint32_t), uint32_t priority){
+	pio_handler_set(pio, ul_id, ul_mask , ul_attr, p_handler);
+	pio_enable_interrupt(pio, ul_mask);
+	pio_get_interrupt_status(pio);
+	NVIC_EnableIRQ(ul_id);
+	NVIC_SetPriority(ul_id, priority);
+}
 /************************************************************************/
 /* callbacks                                                            */
 /************************************************************************/
@@ -220,23 +251,37 @@ static void wifi_cb(uint8_t u8MsgType, void *pvMsg)
 /************************************************************************/
 /* TASKS                                                                */
 /************************************************************************/
+void get_funcao(uint8_t *g_sendBuffer, char *prefix){
+	sprintf(g_sendBuffer, "GET %s HTTP/1.1\r\n Accept: */*\r\n\r\n", prefix);
+}
 
+void send_post_request(char *endpoint, char status){
+	char *contentBuffer[6];
+	sprintf(contentBuffer, "LED=%d", status);
+	sprintf((char *)g_sendBuffer, "POST %s HTTP/1.0\nContent-Type: application/x-www-form-urlencoded\nContent-Length: %d\n\n%s", endpoint, strlen(contentBuffer), contentBuffer);
+	printf("ESSE É O G_SEND_BUFFER %s", g_sendBuffer);
+	send(tcp_client_socket, g_sendBuffer, strlen((char *)g_sendBuffer), 0);
+}
 static void task_process(void *pvParameters) {
+	int request_status = 0;
+	int status = 0;
 
-  printf("task process created \n");
-  vTaskDelay(1000);
+	printf("task process created \n");
+	vTaskDelay(1000);
 
-  uint msg_counter = 0;
-  tstrSocketRecvMsg *p_recvMsg;
+	uint msg_counter = 0;
+	tstrSocketRecvMsg *p_recvMsg;
 
-  enum states {
-    WAIT = 0,
-    GET,
-    ACK,
-    MSG,
-    TIMEOUT,
-    DONE,
-  };
+	enum states {
+		WAIT = 0,
+		GET,
+		POST,
+		ACK,
+		ACK_POST,
+		MSG,
+		TIMEOUT,
+		DONE,
+	};
 
   enum states state = WAIT;
 
@@ -249,7 +294,11 @@ static void task_process(void *pvParameters) {
       while(gbTcpConnection == false && tcp_client_socket >= 0){
         vTaskDelay(10);
       }
-      state = GET;
+	  if (xSemaphoreTake(xSemaphoreBotao, 100)) {
+		  state = POST;
+		  } else {
+		  state = GET;
+	  }
       break;
 
       case GET:
@@ -258,6 +307,14 @@ static void task_process(void *pvParameters) {
       send(tcp_client_socket, g_sendBuffer, strlen((char *)g_sendBuffer), 0);
       state = ACK;
       break;
+	  
+	   case POST:
+	   printf("STATE: POST \n");
+	   request_status = status == 1 ? 0 : 1;
+	   printf("ESSE É O REQUEST STATUS: %d", request_status);
+	   send_post_request("/status", request_status);
+	   state = ACK_POST;
+	   break;
 
       case ACK:
       printf("STATE: ACK \n");
@@ -274,6 +331,22 @@ static void task_process(void *pvParameters) {
         state = TIMEOUT;
       };
       break;
+	  
+	  case ACK_POST:
+	  printf("STATE: ACK from POST \n");
+	  memset(g_receivedBuffer, 0, MAIN_WIFI_M2M_BUFFER_SIZE);
+	  recv(tcp_client_socket, &g_receivedBuffer[0], MAIN_WIFI_M2M_BUFFER_SIZE, 0);
+	  
+	  if(xQueueReceive(xQueueMsg, &p_recvMsg, 5000) == pdTRUE){
+		  printf(STRING_LINE);
+		  printf(p_recvMsg->pu8Buffer);
+		  printf(STRING_EOL);  printf(STRING_LINE);
+		  state = DONE;
+	  }
+	  else {
+		  state = TIMEOUT;
+	  };
+	  break;
 
       case MSG:
       printf("STATE: MSG \n");
@@ -283,6 +356,18 @@ static void task_process(void *pvParameters) {
       if(xQueueReceive(xQueueMsg, &p_recvMsg, 5000) == pdTRUE){
         printf(STRING_LINE);
         printf(p_recvMsg->pu8Buffer);
+		strstr(p_recvMsg->pu8Buffer, "\"led\":");
+		printf("%s", strstr(p_recvMsg->pu8Buffer, "\"led\":"));
+		char *status_led = strstr(p_recvMsg->pu8Buffer, "\"led\":")+8;
+		printf("STATUS: %s", status_led);
+		status = atoi(status_led);
+		printf("STATUS CERTO: %d", status);
+		
+		if (status == 1){
+			pio_clear(LED_PIO, LED_PIO_IDX_MASK);
+			} else {
+			pio_set(LED_PIO, LED_PIO_IDX_MASK);
+		}
         printf(STRING_EOL);  printf(STRING_LINE);
         state = DONE;
       }
@@ -373,21 +458,31 @@ static void task_wifi(void *pvParameters) {
   }
 }
 
+
 int main(void)
 {
-  /* Initialize the board. */
-  sysclk_init();
-  board_init();
+	/* Initialize the board. */
+	sysclk_init();
+	board_init();
+	pmc_enable_periph_clk(LED_PIO_ID);
+	pio_set_output(LED_PIO, LED_PIO_IDX_MASK, 0, 0, 0 );
+	
+	configure_pio_input(BUT_PIO, PIO_INPUT, BUT_PIO_IDX_MASK, PIO_PULLUP|PIO_DEBOUNCE, BUT_PIO_ID);
+	configure_interruption(BUT_PIO, BUT_PIO_ID, BUT_PIO_IDX_MASK, PIO_IT_FALL_EDGE, but_callback, 4);
 
-  /* Initialize the UART console. */
-  configure_console();
-  printf(STRING_HEADER);
+	/* Initialize the UART console. */
+	configure_console();
+	printf(STRING_HEADER);
+	
+	xSemaphoreBotao = xSemaphoreCreateBinary();
+	if (xSemaphoreBotao == NULL)
+	printf("falha em criar o semaforo \n");
 
-  xTaskCreate(task_wifi, "Wifi", TASK_WIFI_STACK_SIZE, NULL, TASK_WIFI_PRIORITY, &xHandleWifi);
-  xTaskCreate(task_process, "process", TASK_PROCESS_STACK_SIZE, NULL, TASK_PROCESS_PRIORITY,  NULL );
+	xTaskCreate(task_wifi, "Wifi", TASK_WIFI_STACK_SIZE, NULL, TASK_WIFI_PRIORITY, &xHandleWifi);
+	xTaskCreate(task_process, "process", TASK_PROCESS_STACK_SIZE, NULL, TASK_PROCESS_PRIORITY,  NULL );
 
-  vTaskStartScheduler();
+	vTaskStartScheduler();
 
-  while(1) {};
-  return 0;
+	while(1) {};
+	return 0;
 }
